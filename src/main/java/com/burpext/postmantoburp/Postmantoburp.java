@@ -4,7 +4,7 @@ import burp.api.montoya.BurpExtension;
 import burp.api.montoya.MontoyaApi;
 import java.io.File;
 
-public class Postmantoburp implements BurpExtension {
+public class Postmantoburp implements BurpExtension  {
 
     private MontoyaApi api;
     private PostmanUI ui;
@@ -28,4 +28,6 @@ public class Postmantoburp implements BurpExtension {
         logic.loadAndSendPostmanRequests(filePath);
         ui.setStatus("File imported: " + new File(filePath).getName());
     }
+
+  
 }

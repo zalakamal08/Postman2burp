@@ -9,9 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 public class PostmanLogic {
 
@@ -108,34 +106,52 @@ public class PostmanLogic {
 
             // Extract and resolve URL components
             JsonNode urlObject = request.get("url");
-             String protocol = urlObject.has("protocol") ? urlObject.get("protocol").asText() : "https";  // Extract protocol (http or https)
-            String path = resolvePath(urlObject);  // Extract only the path
-            String host = resolveHost(urlObject);  // Extract only the host
-
-            // Determine port based on protocol
+            String protocol = urlObject.has("protocol") ? urlObject.get("protocol").asText() : "https";  // Default to https
+            String path = resolvePath(urlObject);
+            String host = resolveHost(urlObject);
             int port = protocol.equalsIgnoreCase("http") ? 80 : 443;
 
             // Extract and resolve headers
-            String headers = extractAndResolveHeaders(request, host);
+            Map<String, String> headersMap = extractAndResolveHeaders(request, host);
+
+            // **Newly Added: Handle Authorization Header**
+            addAuthorizationHeader(request, headersMap);
 
             // Extract and resolve body
-            String body = extractAndResolveBody(request);
+            String body = extractAndResolveBody(request, headersMap);
 
-            // Create HttpService based on the extracted host and dynamic port
+            // Build the request headers string
+            String headers = buildHeadersString(headersMap);
+
+            // Create HttpService
             HttpService service = HttpService.httpService(host, port, protocol.equalsIgnoreCase("https"));
 
             // Create HttpRequest with the service and formatted request
             HttpRequest httpRequest = HttpRequest.httpRequest(service, method + " " + path + " HTTP/1.1\r\n" +
                     headers + "\r\n" +
-                    (body != null ? body + "\r\n" : ""));
+                    (body != null ? body : ""));
 
             // Send the request to Repeater
             sendRequestToRepeater(httpRequest, item.get("name").asText());
 
         } catch (Exception e) {
-            // Increment error counter and log the error
             errorRequestCount++;
             api.logging().logToOutput("Error processing request: " + e.getMessage());
+        }
+    }
+
+    // **New Method to Add Authorization Header**
+    private void addAuthorizationHeader(JsonNode request, Map<String, String> headersMap) {
+        if (request.has("auth")) {
+            JsonNode auth = request.get("auth");
+            if (auth.has("type") && "bearer".equalsIgnoreCase(auth.get("type").asText())) {
+                if (auth.has("bearer") && auth.get("bearer").isArray()) {
+                    for (JsonNode bearer : auth.get("bearer")) {
+                        String tokenValue = replaceVariables(bearer.get("value").asText());
+                        headersMap.put("Authorization", "Bearer " + tokenValue);
+                    }
+                }
+            }
         }
     }
 
@@ -143,22 +159,19 @@ public class PostmanLogic {
     private String resolvePath(JsonNode urlObject) {
         StringBuilder pathBuilder = new StringBuilder();
 
-        // Extract and resolve path (this will build the URL path, not the full URL)
-        if (urlObject.has("path") && urlObject.get("path").isArray()) {
-            Iterator<JsonNode> pathParts = urlObject.get("path").elements();
-            while (pathParts.hasNext()) {
-                pathBuilder.append("/").append(replaceVariables(pathParts.next().asText()));
+        if (urlObject.has("path")) {
+            for (JsonNode segment : urlObject.get("path")) {
+                pathBuilder.append("/").append(segment.asText());
             }
         }
-
-        return pathBuilder.toString();  // Return the path part only
+        return pathBuilder.toString();
     }
 
+  
     // Extract only the host and join with "."
     private String resolveHost(JsonNode urlObject) {
         StringBuilder hostBuilder = new StringBuilder();
 
-        // Extract and resolve host (e.g., www.googleapis.com)
         if (urlObject.has("host") && urlObject.get("host").isArray()) {
             Iterator<JsonNode> hostParts = urlObject.get("host").elements();
             while (hostParts.hasNext()) {
@@ -169,48 +182,113 @@ public class PostmanLogic {
             }
         }
 
-        return hostBuilder.toString();  // Return the host part only
+        return hostBuilder.toString();
     }
 
-private String extractAndResolveHeaders(JsonNode request, String host) {
-    StringBuilder headersBuilder = new StringBuilder();
+    private Map<String, String> extractAndResolveHeaders(JsonNode request, String host) {
+        Map<String, String> headersMap = new LinkedHashMap<>();
 
-    // Add Host header
-    headersBuilder.append("Host: ").append(host).append("\r\n");
+        // Add Host header
+        headersMap.put("Host", host);
 
-    // Extract and resolve other headers
-    JsonNode headers = request.get("header");
-    if (headers != null && headers.isArray()) {
-        for (JsonNode header : headers) {
-            // Check if the header is disabled
-            if (header.has("disabled") && header.get("disabled").asBoolean()) {
-                continue;  // Skip the disabled header
-            }
+        // Extract and resolve other headers
+        JsonNode headers = request.get("header");
+        if (headers != null && headers.isArray()) {
+            for (JsonNode header : headers) {
+                if (header.has("disabled") && header.get("disabled").asBoolean()) {
+                    continue;
+                }
 
-            String key = header.get("key").asText();
-            String value = replaceVariables(header.get("value").asText());
+                String key = header.get("key").asText();
+                String value = replaceVariables(header.get("value").asText());
 
-            if (!key.isEmpty() && !value.isEmpty()) {
-                headersBuilder.append(key).append(": ").append(value).append("\r\n");
+                if (!key.isEmpty() && !value.isEmpty()) {
+                    headersMap.put(key, value);
+                }
             }
         }
+
+        return headersMap;
     }
 
-    return headersBuilder.toString();
-}
+    private String buildHeadersString(Map<String, String> headersMap) {
+        StringBuilder headersBuilder = new StringBuilder();
+        for (Map.Entry<String, String> header : headersMap.entrySet()) {
+            headersBuilder.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
+        }
+        return headersBuilder.toString();
+    }
 
-    private String extractAndResolveBody(JsonNode request) {
+    private String extractAndResolveBody(JsonNode request, Map<String, String> headersMap) {
         JsonNode body = request.get("body");
-        if (body != null && body.has("raw")) {
-            String rawBody = body.get("raw").asText();
-            return replaceVariables(rawBody);
+        if (body != null) {
+            String mode = body.has("mode") ? body.get("mode").asText() : "";
+
+            switch (mode) {
+                case "raw":
+                    String rawBody = body.get("raw").asText();
+                    return replaceVariables(rawBody);
+                case "urlencoded":
+                    headersMap.putIfAbsent("Content-Type", "application/x-www-form-urlencoded");
+                    return extractUrlEncodedBody(body.get("urlencoded"));
+                case "formdata":
+                    String boundary = "----BurpBoundary" + System.currentTimeMillis();
+                    headersMap.putIfAbsent("Content-Type", "multipart/form-data; boundary=" + boundary);
+                    return extractFormDataBody(body.get("formdata"), boundary);
+                default:
+                    api.logging().logToOutput("Unsupported body mode: " + mode);
+            }
         }
         return null;
     }
 
+    // Handles extracting and formatting URL-encoded body data
+    private String extractUrlEncodedBody(JsonNode urlEncodedBody) {
+        StringBuilder bodyBuilder = new StringBuilder();
+        if (urlEncodedBody != null && urlEncodedBody.isArray()) {
+            for (JsonNode param : urlEncodedBody) {
+                String key = param.get("key").asText();
+                String value = replaceVariables(param.get("value").asText());
+                if (bodyBuilder.length() > 0) {
+                    bodyBuilder.append("&"); // URL-encoded separator
+                }
+                bodyBuilder.append(key).append("=").append(value);
+            }
+        }
+//         api.logging().logToOutput(bodyBuilder.toString());
+        return bodyBuilder.toString();
+    }
+
+    // Handles extracting and formatting form-data body
+    private String extractFormDataBody(JsonNode formData, String boundary) {
+        StringBuilder bodyBuilder = new StringBuilder();
+        if (formData != null && formData.isArray()) {
+            for (JsonNode param : formData) {
+                String key = param.get("key").asText();
+                boolean isFile = param.has("type") && param.get("type").asText().equals("file");
+                String value = param.has("value") ? replaceVariables(param.get("value").asText()) : "";
+
+                bodyBuilder.append("--").append(boundary).append("\r\n");
+                if (isFile) {
+                    // Handle file upload (Note: Actual file content handling would require file reading)
+                    String filename = param.has("src") ? param.get("src").asText() : "filename";
+                    bodyBuilder.append("Content-Disposition: form-data; name=\"").append(key)
+                            .append("\"; filename=\"").append(filename).append("\"\r\n");
+                    bodyBuilder.append("Content-Type: application/octet-stream\r\n\r\n");
+                    bodyBuilder.append("File content goes here").append("\r\n"); // Placeholder
+                } else {
+                    bodyBuilder.append("Content-Disposition: form-data; name=\"").append(key).append("\"\r\n\r\n");
+                    bodyBuilder.append(value).append("\r\n");
+                }
+            }
+            bodyBuilder.append("--").append(boundary).append("--").append("\r\n");
+        }
+        return bodyBuilder.toString();
+    }
+
+
     private String replaceVariables(String input) {
         if (input == null) return "";
-        // Replace all instances of {{variable}} with corresponding values
         for (Map.Entry<String, String> entry : variablesMap.entrySet()) {
             String variablePlaceholder = "{{" + entry.getKey() + "}}";
             input = input.replace(variablePlaceholder, entry.getValue());
