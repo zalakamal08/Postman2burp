@@ -270,13 +270,8 @@ public class CollectionTreePanel extends JPanel {
                 } else if (cn.getRequestItem() != null) {
                     RequestItem item = cn.getRequestItem();
                     String method = item.getMethod();
-                    Color badgeColor = METHOD_COLORS.getOrDefault(method, Color.GRAY);
-
-                    // Build HTML label with colored method badge
-                    String colorHex = String.format("#%02x%02x%02x",
-                            badgeColor.getRed(), badgeColor.getGreen(), badgeColor.getBlue());
-                    setText("<html><b><font color='" + colorHex + "'>" + method
-                            + "</font></b>&nbsp;&nbsp;" + cn.getDisplayName() + "</html>");
+                    // Fallback to plain text since HTML rendering failed in this LaF
+                    setText("[" + method + "] " + cn.getDisplayName());
                     setFont(getFont().deriveFont(Font.PLAIN));
                 }
             }
