@@ -5,6 +5,8 @@ import com.burpext.postmantoburp.model.RequestItem;
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.http.HttpService;
 import burp.api.montoya.http.message.requests.HttpRequest;
+import burp.api.montoya.scanner.AuditConfiguration;
+import burp.api.montoya.scanner.BuiltInAuditConfiguration;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -195,7 +197,6 @@ public class RequestInspectorPanel extends JPanel {
         new Thread(() -> {
             try {
                 HttpRequest httpRequest = buildHttpRequest(item);
-                String label = statusLabel.getText();
 
                 switch (tool) {
                     case REPEATER -> {
@@ -209,10 +210,18 @@ public class RequestInspectorPanel extends JPanel {
                                 statusLabel.setText("✔ Sent to Intruder: " + item.getName()));
                     }
                     case SCANNER -> {
-                        api.repeater().sendToRepeater(httpRequest, "[SCAN] " + item.getName());
+                        // Resolve and scope the target URL — startAudit operates on in-scope URLs
+                        String targetUrl = envManager.resolve(item.getFullUrl());
+                        if (!api.scope().isInScope(targetUrl)) {
+                            api.scope().includeInScope(targetUrl);
+                        }
+                        // Fire the actual Burp active scan
+                        api.scanner().startAudit(
+                            AuditConfiguration.auditConfiguration(BuiltInAuditConfiguration.LEGACY_ACTIVE_AUDIT_CHECKS)
+                        );
                         SwingUtilities.invokeLater(() ->
-                                statusLabel.setText("✔ Sent to Repeater for Active Scan: " + item.getName()));
-                        api.logging().logToOutput("[Active Scan] Request queued: " + item.getFullUrl());
+                                statusLabel.setText("✔ Active Scan started: " + item.getName()));
+                        api.logging().logToOutput("[Active Scan] Scan queued for: " + item.getFullUrl());
                     }
                 }
             } catch (Exception ex) {
