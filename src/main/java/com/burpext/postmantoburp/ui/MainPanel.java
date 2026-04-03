@@ -11,7 +11,7 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 
 /**
- * Root panel registered as a Burp Suite tab ("API Workbench").
+ * Root panel registered as a Burp Suite tab ("Postman2Burp").
  *
  * Layout:
  *   ┌─────────────────────────────────────────────────────────┐
@@ -71,7 +71,7 @@ public class MainPanel extends JPanel {
         toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(210, 210, 210)));
 
         // Brand label
-        JLabel brand = new JLabel("  🔵 API Workbench");
+        JLabel brand = new JLabel("  🔵 Postman2Burp");
         brand.setFont(new Font("SansSerif", Font.BOLD, 13));
         brand.setForeground(new Color(50, 50, 50));
         toolbar.add(brand);
@@ -94,7 +94,7 @@ public class MainPanel extends JPanel {
                     node -> {
                         treePanel.addCollection(node);
                         api.logging().logToOutput(
-                                "[API Workbench] Imported: " + node.getDisplayName());
+                                "[Postman2Burp] Imported: " + node.getDisplayName());
                     });
             dialog.setVisible(true);
         });
