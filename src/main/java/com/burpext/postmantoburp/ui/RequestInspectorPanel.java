@@ -268,5 +268,15 @@ public class RequestInspectorPanel extends JPanel {
         return HttpRequest.httpRequest(service, raw.toString());
     }
 
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private JButton styledButton(String text, Color color) {
+        JButton b = new JButton(text);
+        b.setFont(new Font("SansSerif", Font.BOLD, 12));
+        b.setForeground(color);
+        b.setFocusPainted(false);
+        return b;
+    }
+
     public enum BurpTool { REPEATER, INTRUDER, SCANNER }
 }
