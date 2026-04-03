@@ -72,14 +72,14 @@ public class ImportDialog extends JDialog {
         JPanel p = new JPanel(new BorderLayout(8, 8));
         p.setBorder(new EmptyBorder(16, 16, 12, 16));
 
-        JLabel info = new JLabel("<html>Select a Postman Collection JSON file (v2 / v2.1).<br>"
-                + "Variables from the collection will be loaded into the Environment Manager.</html>");
-        info.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        JTextArea info = infoArea(
+                "Select a Postman Collection JSON file (v2 / v2.1).\n"
+                + "Variables from the collection will be loaded into the Environment Manager.");
 
         JPanel row = new JPanel(new BorderLayout(6, 0));
         postmanFileField.setEditable(false);
         postmanFileField.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        JButton browse = new JButton("Browse…");
+        JButton browse = new JButton("Browse...");
         browse.addActionListener(e -> {
             JFileChooser fc = new JFileChooser();
             fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
@@ -151,9 +151,9 @@ public class ImportDialog extends JDialog {
 
         // Info
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
-        JLabel info = new JLabel("<html>Import an OpenAPI v3 spec from a <b>local file</b> (.json / .yaml)"
-                + " or a <b>remote URL</b> (e.g. https://api.example.com/swagger.json).</html>");
-        info.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        JTextArea info = infoArea(
+                "Import an OpenAPI v3 spec from a local file (.json / .yaml)"
+                + " or a remote URL (e.g. https://api.example.com/swagger.json).");
         p.add(info, gbc);
 
         // File row
@@ -164,7 +164,7 @@ public class ImportDialog extends JDialog {
         JPanel fileRow = new JPanel(new BorderLayout(6, 0));
         openApiFileField.setEditable(false);
         openApiFileField.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        JButton browse = new JButton("Browse…");
+        JButton browse = new JButton("Browse...");
         browse.addActionListener(e -> {
             JFileChooser fc = new JFileChooser();
             fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
@@ -192,9 +192,8 @@ public class ImportDialog extends JDialog {
 
         // Hint
         gbc.gridy = 4; gbc.gridx = 0; gbc.gridwidth = 2;
-        JLabel hint = new JLabel(
-                "<html><i>Example: https://petstore3.swagger.io/api/v3/openapi.json</i></html>");
-        hint.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        JLabel hint = new JLabel("Example: https://petstore3.swagger.io/api/v3/openapi.json");
+        hint.setFont(new Font("SansSerif", Font.ITALIC, 11));
         hint.setForeground(new Color(120, 120, 120));
         p.add(hint, gbc);
 
@@ -303,5 +302,23 @@ public class ImportDialog extends JDialog {
         } else {
             throw new IllegalArgumentException("Please provide a file or a URL.");
         }
+    }
+    // ─── Utility for multi-line info text ───────────────────────────────────────
+
+    /**
+     * Creates a read-only, borderless, background-transparent JTextArea
+     * that looks like a label but wraps naturally to multiple lines.
+     * Used instead of HTML JLabels which don't render in Burp's LaF.
+     */
+    private JTextArea infoArea(String text) {
+        JTextArea area = new JTextArea(text);
+        area.setEditable(false);
+        area.setFocusable(false);
+        area.setOpaque(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        area.setBorder(null);
+        return area;
     }
 }

@@ -252,30 +252,64 @@ public class CollectionTreePanel extends JPanel {
 
     // ─── Tree cell renderer ───────────────────────────────────────────────────
 
+    /**
+     * Custom renderer: folders get a bold label; request leaves get a
+     * coloured method badge (JLabel) beside the request name — no HTML needed.
+     */
     private class CollectionTreeRenderer extends DefaultTreeCellRenderer {
+
+        // Re-usable row panel (returned as the renderer component for leaf nodes)
+        private final JPanel  rowPanel  = new JPanel(new BorderLayout(4, 0));
+        private final JLabel  badgeLabel = new JLabel();
+        private final JLabel  nameLabel  = new JLabel();
+
+        CollectionTreeRenderer() {
+            rowPanel.setOpaque(true);
+            rowPanel.add(badgeLabel, BorderLayout.WEST);
+            rowPanel.add(nameLabel,  BorderLayout.CENTER);
+
+            badgeLabel.setFont(new Font("Monospaced", Font.BOLD, 11));
+            badgeLabel.setBorder(BorderFactory.createEmptyBorder(1, 3, 1, 6));
+            nameLabel .setFont(new Font("SansSerif",  Font.PLAIN, 12));
+        }
 
         @Override
         public Component getTreeCellRendererComponent(
                 JTree tree, Object value, boolean selected,
                 boolean expanded, boolean leaf, int row, boolean hasFocus) {
 
+            // Let super handle selection highlight, focus border, etc.
             super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
-            setIcon(null); // remove default icons
+            setIcon(null);
 
-            if (value instanceof CollectionNode cn) {
-                if (cn.isFolder()) {
-                    setText((expanded ? "▼ " : "▶ ") + cn.getDisplayName());
-                    setFont(getFont().deriveFont(Font.BOLD));
-                    setForeground(selected ? Color.WHITE : new Color(50, 50, 50));
-                } else if (cn.getRequestItem() != null) {
-                    RequestItem item = cn.getRequestItem();
-                    String method = item.getMethod();
-                    // Fallback to plain text since HTML rendering failed in this LaF
-                    setText("[" + method + "] " + cn.getDisplayName());
-                    setFont(getFont().deriveFont(Font.PLAIN));
-                }
+            if (!(value instanceof CollectionNode cn)) return this;
+
+            if (cn.isFolder()) {
+                // ── Folder row — use the default JLabel ("this") ──────────────
+                setText((expanded ? "▼  " : "▶  ") + cn.getDisplayName());
+                setFont(new Font("SansSerif", Font.BOLD, 12));
+                setForeground(selected ? Color.WHITE : new Color(40, 40, 40));
+                return this;
             }
-            return this;
+
+            // ── Request leaf row — use the custom rowPanel ─────────────────
+            RequestItem item = cn.getRequestItem();
+            if (item == null) return this;
+
+            String method = item.getMethod() == null ? "?" : item.getMethod();
+            Color  color  = METHOD_COLORS.getOrDefault(method, new Color(130, 130, 130));
+
+            badgeLabel.setText(String.format("%-7s", method));  // pad to 7 chars for alignment
+            badgeLabel.setForeground(color);
+
+            nameLabel.setText(cn.getDisplayName());
+            nameLabel.setForeground(selected ? Color.WHITE : new Color(30, 30, 30));
+
+            // Mirror selection background from the default renderer
+            Color bg = selected ? getBackgroundSelectionColor() : getBackgroundNonSelectionColor();
+            rowPanel.setBackground(bg);
+
+            return rowPanel;
         }
     }
 
