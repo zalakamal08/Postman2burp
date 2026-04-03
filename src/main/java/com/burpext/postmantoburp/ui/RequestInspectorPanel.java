@@ -10,8 +10,6 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -225,36 +223,76 @@ public class RequestInspectorPanel extends JPanel {
         }).start();
     }
 
-    /** Builds a Burp HttpRequest from a RequestItem, resolving all env variables. */
-    public HttpRequest buildHttpRequest(RequestItem item) {
-        String host     = envManager.resolve(item.getHost());
-        String path     = envManager.resolve(item.getPath());
-        String method   = item.getMethod();
-        int    port     = item.getPort();
-        boolean secure  = item.isSecure();
-        String protocol = item.getProtocol();
+    /**
+     * Builds a Burp HttpRequest from a RequestItem, resolving all env variables.
+     *
+     * Strategy:
+     *   1. Resolve the complete fullUrl string first (handles {{baseUrl}} etc.)
+     *   2. Parse it with java.net.URI to cleanly extract host / port / path
+     *   3. If any {{variable}} is still present after resolution → clear user error
+     *   4. Fall back to item fields only if the URL is not parseable
+     */
+    public HttpRequest buildHttpRequest(RequestItem item) throws Exception {
+        String method = item.getMethod();
 
-        // Ensure port is sane
+        // ── Step 1: resolve the full URL ─────────────────────────────────────
+        String resolvedUrl = envManager.resolve(item.getFullUrl());
+
+        // ── Step 2: check for any remaining unresolved {{placeholders}} ──────
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("\\{\\{([^}]+)\\}\\}").matcher(resolvedUrl);
+        if (m.find()) {
+            throw new IllegalArgumentException(
+                    "Unresolved variable: {{" + m.group(1) + "}}. "
+                    + "Set it in the Environments panel before sending.");
+        }
+
+        // ── Step 3: parse the resolved URL ───────────────────────────────────
+        java.net.URI uri;
+        try {
+            uri = new java.net.URI(resolvedUrl);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid URL after resolution: " + resolvedUrl);
+        }
+
+        String host     = uri.getHost();
+        String protocol = uri.getScheme() != null ? uri.getScheme().toLowerCase() : "https";
+        boolean secure  = "https".equals(protocol);
+        int port        = uri.getPort();
         if (port <= 0) port = secure ? 443 : 80;
 
+        // Path + query string (Burp wants the full request path including query)
+        String path = uri.getRawPath();
+        if (path == null || path.isEmpty()) path = "/";
+        if (uri.getRawQuery() != null) path = path + "?" + uri.getRawQuery();
+
+        if (host == null || host.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Could not determine host from URL: " + resolvedUrl);
+        }
+
+        // ── Step 4: build the raw HTTP request ──────────────────────────────
         HttpService service = HttpService.httpService(host, port, secure);
 
         StringBuilder raw = new StringBuilder();
         raw.append(method).append(" ").append(path).append(" HTTP/1.1\r\n");
         raw.append("Host: ").append(host).append("\r\n");
 
-        // Headers (skip Host, will be prepended)
+        // Headers (skip Host, it's already added above)
         for (Map.Entry<String, String> h : item.getHeaders().entrySet()) {
             if ("host".equalsIgnoreCase(h.getKey())) continue;
-            raw.append(h.getKey()).append(": ").append(envManager.resolve(h.getValue())).append("\r\n");
+            raw.append(h.getKey()).append(": ")
+               .append(envManager.resolve(h.getValue())).append("\r\n");
         }
 
         // Auth injection
         String authType = item.getAuthType();
         if ("bearer".equalsIgnoreCase(authType)) {
-            raw.append("Authorization: Bearer ").append(envManager.resolve(item.getAuthValue())).append("\r\n");
+            raw.append("Authorization: Bearer ")
+               .append(envManager.resolve(item.getAuthValue())).append("\r\n");
         } else if ("basic".equalsIgnoreCase(authType)) {
-            raw.append("Authorization: Basic ").append(envManager.resolve(item.getAuthValue())).append("\r\n");
+            raw.append("Authorization: Basic ")
+               .append(envManager.resolve(item.getAuthValue())).append("\r\n");
         }
 
         String body = envManager.resolve(item.getBody());
