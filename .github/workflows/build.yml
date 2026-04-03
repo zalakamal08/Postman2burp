@@ -1,0 +1,99 @@
+name: Build Postman2Burp JAR
+
+on:
+  push:
+    branches:
+      - '**'          # every branch
+    tags:
+      - 'v*'          # also fire on version tags like v1.0, v2.3.1
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    name: Build & Package
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Java 17 ────────────────────────────────────────────────────
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven          # caches ~/.m2 between runs for faster builds
+
+      # ── 3. Build fat JAR (maven-shade-plugin is already configured) ──────────
+      - name: Build with Maven
+        run: mvn --no-transfer-progress clean package -DskipTests
+
+      # ── 4. Rename the shaded JAR to something clear ──────────────────────────
+      - name: Rename artifact
+        run: |
+          mkdir -p dist
+          # maven-shade produces the "fat" jar without the original- prefix
+          cp target/postmantoburp-*.jar dist/Postman2Burp.jar
+          echo "Built JAR:"
+          ls -lh dist/
+
+      # ── 5. Upload JAR as a workflow artifact (available from the Actions UI) ─
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Postman2Burp-jar
+          path: dist/Postman2Burp.jar
+          retention-days: 30
+
+  # ── Release job: only runs when you push a version tag (v*) ─────────────────
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write       # needed to create a release
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Download the JAR built by the build job
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Postman2Burp-jar
+          path: dist/
+
+      # Parse the tag name (e.g. v1.2.3) for the release title
+      - name: Get tag name
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      # Create a GitHub Release and attach the JAR
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          name: "Postman2Burp ${{ steps.tag.outputs.TAG }}"
+          body: |
+            ## Postman2Burp ${{ steps.tag.outputs.TAG }}
+
+            ### What's included
+            - `Postman2Burp.jar` — Fat JAR built with Java 17 & Maven Shade Plugin.
+
+            ### Installation
+            1. Open Burp Suite → **Extensions** → **Add**
+            2. Select *Extension Type*: **Java**
+            3. Browse to `Postman2Burp.jar`
+            4. Click **Next** — the extension will load automatically.
+
+            ### Usage
+            Go to the **Import Postman Collection** tab, click the button, and select your `.json` Postman collection file.
+          files: dist/Postman2Burp.jar
+          draft: false
+          prerelease: false
