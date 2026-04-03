@@ -2,32 +2,24 @@ package com.burpext.postmantoburp;
 
 import burp.api.montoya.BurpExtension;
 import burp.api.montoya.MontoyaApi;
-import java.io.File;
+import com.burpext.postmantoburp.logic.EnvironmentManager;
+import com.burpext.postmantoburp.ui.MainPanel;
 
-public class Postmantoburp implements BurpExtension  {
-
-    private MontoyaApi api;
-    private PostmanUI ui;
-    private PostmanLogic logic;
+/**
+ * Burp Suite extension entry point.
+ * Registers the "API Workbench" tab in Burp's suite.
+ */
+public class Postmantoburp implements BurpExtension {
 
     @Override
     public void initialize(MontoyaApi api) {
-        this.api = api;
-        api.extension().setName("Postman2Burp");
-        api.logging().logToOutput("Postmantoburp Initialized");
+        api.extension().setName("Postman2Burp — API Workbench");
+        api.logging().logToOutput("Postman2Burp API Workbench loaded successfully.");
+        api.logging().logToOutput("Features: Postman Collection importer · cURL parser · OpenAPI v3 loader · Environment Manager");
 
-        // Initialize UI and Logic
-        ui = new PostmanUI(api, this);
-        logic = new PostmanLogic(api);
+        EnvironmentManager envManager = new EnvironmentManager();
+        MainPanel mainPanel = new MainPanel(api, envManager);
 
-        // Register the UI panel
-        api.userInterface().registerSuiteTab("Import Postman Collection", ui.getPanel());
+        api.userInterface().registerSuiteTab("API Workbench", mainPanel.getPanel());
     }
-
-    public void loadAndSendPostmanRequests(String filePath) {
-        logic.loadAndSendPostmanRequests(filePath);
-        ui.setStatus("File imported: " + new File(filePath).getName());
-    }
-
-  
 }
