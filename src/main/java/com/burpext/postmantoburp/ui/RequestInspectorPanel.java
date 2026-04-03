@@ -247,6 +247,10 @@ public class RequestInspectorPanel extends JPanel {
                     + "Set it in the Environments panel before sending.");
         }
 
+        // ── Step 2b: fix double-protocol (happens when {{baseUrl}} = "https://...")
+        //    e.g. "https://https://api.example.com" → "https://api.example.com"
+        resolvedUrl = resolvedUrl.replaceAll("^(https?://)https?://", "$1");
+
         // ── Step 3: parse the resolved URL ───────────────────────────────────
         java.net.URI uri;
         try {
