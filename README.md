@@ -4,7 +4,6 @@ Transform Burp Suite into a fully-fledged API testing workstation! **Postman2Bur
 
 Say goodbye to manually copy-pasting headers, wrestling with `{{variables}}`, or switching back and forth between tools.
 
-![Postman2Burp Screenshot](https://raw.githubusercontent.com/zalakamal08/Postman2burp/main/assets/screenshot.png) *(Note: Add a screenshot to an `assets/` folder)*
 
 ## ✨ Key Features
 
