@@ -1,4 +1,4 @@
-# Postman2Burp 🚀
+# Postman2Burp 🚀📧
 
 Transform Burp Suite into a fully-fledged API testing workstation! **Postman2Burp** is a modern Burp Suite extension that natively imports Postman Collections, cURL commands, and OpenAPI specifications right into your Burp workspace.
 
