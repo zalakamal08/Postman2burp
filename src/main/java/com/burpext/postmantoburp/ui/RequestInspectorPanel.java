@@ -317,7 +317,7 @@ public class RequestInspectorPanel extends JPanel {
 
         String body = envManager.resolve(item.getBody());
         if (body != null && !body.isEmpty()) {
-            raw.append("Content-Length: ").append(body.getBytes().length).append("\r\n");
+            raw.append("Content-Length: ").append(body.getBytes(java.nio.charset.StandardCharsets.UTF_8).length).append("\r\n");
             raw.append("\r\n").append(body);
         } else {
             raw.append("\r\n");
