@@ -105,4 +105,43 @@ public class EnvironmentManager {
             }
         }
     }
+
+    // ─── Placeholder Auto-Registration ───────────────────────────────────────
+
+    /**
+     * Scans {@code input} for variable placeholders in two formats:
+     * <ul>
+     *   <li>{@code {{varName}}} — Postman-style double-brace variables</li>
+     *   <li>{@code {varName}}  — path-style single-brace placeholders (e.g. /user/{username})</li>
+     * </ul>
+     * Any placeholder whose name is <em>not</em> already present in the live variable map
+     * is registered with an empty string value, so the user can see which values are
+     * missing and fill them in from the Environments panel before sending.
+     *
+     * @param input the URL, path, body, or header value to scan (may be null)
+     */
+    public void registerPlaceholders(String input) {
+        if (input == null || input.isEmpty()) return;
+
+        // Match {{varName}} — Postman double-brace style
+        Matcher doubleBrace = VAR_PATTERN.matcher(input);
+        while (doubleBrace.find()) {
+            String key = doubleBrace.group(1).trim();
+            if (!key.isEmpty() && !variables.containsKey(key)) {
+                variables.put(key, "");
+            }
+        }
+
+        // Match {varName} — path-style single-brace placeholders
+        // Negative look-around ensures we do NOT re-match the inner part of {{...}}
+        Pattern pathVar = Pattern.compile("(?<!\\{)\\{([^{}]+)}(?!})");
+        Matcher singleBrace = pathVar.matcher(input);
+        while (singleBrace.find()) {
+            String key = singleBrace.group(1).trim();
+            if (!key.isEmpty() && !variables.containsKey(key)) {
+                variables.put(key, "");
+            }
+        }
+    }
 }
+

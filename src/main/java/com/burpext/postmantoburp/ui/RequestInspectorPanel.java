@@ -292,20 +292,27 @@ public class RequestInspectorPanel extends JPanel {
         raw.append("Host: ").append(host).append("\r\n");
 
         // Headers (skip Host, it's already added above)
+        // Track whether an Authorization header is already present in the headers map
+        boolean hasAuthHeader = item.getHeaders().keySet().stream()
+                .anyMatch(k -> "authorization".equalsIgnoreCase(k));
+
         for (Map.Entry<String, String> h : item.getHeaders().entrySet()) {
             if ("host".equalsIgnoreCase(h.getKey())) continue;
             raw.append(h.getKey()).append(": ")
                .append(envManager.resolve(h.getValue())).append("\r\n");
         }
 
-        // Auth injection
-        String authType = item.getAuthType();
-        if ("bearer".equalsIgnoreCase(authType)) {
-            raw.append("Authorization: Bearer ")
-               .append(envManager.resolve(item.getAuthValue())).append("\r\n");
-        } else if ("basic".equalsIgnoreCase(authType)) {
-            raw.append("Authorization: Basic ")
-               .append(envManager.resolve(item.getAuthValue())).append("\r\n");
+        // Auth injection — only inject when no Authorization header already exists in the
+        // headers map (prevents duplicate Authorization headers).
+        if (!hasAuthHeader) {
+            String authType = item.getAuthType();
+            if ("bearer".equalsIgnoreCase(authType)) {
+                raw.append("Authorization: Bearer ")
+                   .append(envManager.resolve(item.getAuthValue())).append("\r\n");
+            } else if ("basic".equalsIgnoreCase(authType)) {
+                raw.append("Authorization: Basic ")
+                   .append(envManager.resolve(item.getAuthValue())).append("\r\n");
+            }
         }
 
         String body = envManager.resolve(item.getBody());

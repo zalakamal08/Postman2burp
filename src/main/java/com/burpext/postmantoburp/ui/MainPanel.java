@@ -91,7 +91,9 @@ public class MainPanel extends JPanel {
                     postmanParser,
                     curlParser,
                     openApiParser,
+                    api,
                     node -> {
+
                         treePanel.addCollection(node);
                         api.logging().logToOutput(
                                 "[Postman2Burp] Imported: " + node.getDisplayName());

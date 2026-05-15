@@ -5,11 +5,16 @@ import com.burpext.postmantoburp.logic.OpenApiParser;
 import com.burpext.postmantoburp.logic.PostmanParser;
 import com.burpext.postmantoburp.model.CollectionNode;
 import com.burpext.postmantoburp.model.RequestItem;
+import burp.api.montoya.MontoyaApi;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.File;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 /**
@@ -25,6 +30,7 @@ public class ImportDialog extends JDialog {
     private final PostmanParser postmanParser;
     private final CurlParser    curlParser;
     private final OpenApiParser openApiParser;
+    private final MontoyaApi    api;
 
     /** Callback → adds tree node to CollectionTreePanel */
     private final Consumer<CollectionNode> onImportSuccess;
@@ -46,11 +52,13 @@ public class ImportDialog extends JDialog {
                         PostmanParser postmanParser,
                         CurlParser curlParser,
                         OpenApiParser openApiParser,
+                        MontoyaApi api,
                         Consumer<CollectionNode> onImportSuccess) {
         super(parent, "Import Requests", true);
         this.postmanParser   = postmanParser;
         this.curlParser      = curlParser;
         this.openApiParser   = openApiParser;
+        this.api             = api;
         this.onImportSuccess = onImportSuccess;
 
         setSize(640, 420);
@@ -248,13 +256,47 @@ public class ImportDialog extends JDialog {
 
                 onImportSuccess.accept(result);
 
+                // ── Build per-method import summary ──────────────────────────────
+                Map<String, Integer> counts = countByMethod(result);
+                int total = counts.values().stream().mapToInt(Integer::intValue).sum();
+
+                // Build a human-readable breakdown string
+                StringBuilder summary = new StringBuilder();
+                summary.append("Imported collection: ").append(result.getDisplayName()).append("\n");
+                summary.append("Total requests: ").append(total).append("\n");
+                if (!counts.isEmpty()) {
+                    summary.append("\nBreakdown by method:\n");
+                    // Sort methods alphabetically for consistent output
+                    new TreeMap<>(counts).forEach((method, count) ->
+                            summary.append("  ").append(method)
+                                   .append(": ").append(count).append("\n"));
+                }
+
+                String summaryText = summary.toString().trim();
+
+                // Log to Burp Output tab
+                if (api != null) {
+                    api.logging().logToOutput("[Postman2Burp] " + summaryText.replace("\n", " | "));
+                }
+
                 SwingUtilities.invokeLater(() -> {
-                    statusLabel.setText("✔ Import successful!");
+                    statusLabel.setText("✔ Import successful! " + total + " request(s) imported.");
                     statusLabel.setForeground(new Color(60, 160, 80));
-                    // Close after short delay
-                    Timer t = new Timer(800, ae -> dispose());
-                    t.setRepeats(false);
-                    t.start();
+
+                    // Show popup summary dialog
+                    JTextArea ta = new JTextArea(summaryText);
+                    ta.setFont(new Font("Monospaced", Font.PLAIN, 12));
+                    ta.setEditable(false);
+                    ta.setOpaque(false);
+                    ta.setBorder(null);
+                    JOptionPane.showMessageDialog(
+                            ImportDialog.this,
+                            ta,
+                            "✔ Import Complete",
+                            JOptionPane.INFORMATION_MESSAGE);
+
+                    // Close dialog after user acknowledges the popup
+                    dispose();
                 });
 
             } catch (Exception ex) {
@@ -303,6 +345,39 @@ public class ImportDialog extends JDialog {
             throw new IllegalArgumentException("Please provide a file or a URL.");
         }
     }
+    // ─── Import count helpers ─────────────────────────────────────────────────
+
+
+    /**
+     * Recursively walks the given CollectionNode tree and tallies request
+     * counts keyed by HTTP method. Folder nodes are traversed but not counted.
+     *
+     * @param node the root CollectionNode returned by any parser
+     * @return a mutable map of method → count (e.g. {"GET"=5, "POST"=3})
+     */
+    private Map<String, Integer> countByMethod(CollectionNode node) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        countByMethodRecursive(node, counts);
+        return counts;
+    }
+
+    private void countByMethodRecursive(CollectionNode node, Map<String, Integer> counts) {
+        if (!node.isFolder() && node.getRequestItem() != null) {
+            String method = node.getRequestItem().getMethod();
+            if (method == null || method.isBlank()) method = "UNKNOWN";
+            counts.merge(method.toUpperCase(), 1, Integer::sum);
+            return;
+        }
+        // Traverse children
+        Enumeration<?> children = node.children();
+        while (children.hasMoreElements()) {
+            Object child = children.nextElement();
+            if (child instanceof CollectionNode cn) {
+                countByMethodRecursive(cn, counts);
+            }
+        }
+    }
+
     // ─── Utility for multi-line info text ───────────────────────────────────────
 
     /**
@@ -322,3 +397,4 @@ public class ImportDialog extends JDialog {
         return area;
     }
 }
+

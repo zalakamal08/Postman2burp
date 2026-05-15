@@ -170,6 +170,16 @@ public class PostmanParser {
                 }
             }
 
+            // ── Auto-register unknown placeholders into the environment ──────────
+            // Scan the full URL (path may contain {pathParam} or {{var}})
+            envManager.registerPlaceholders(req.getFullUrl());
+            // Scan every header value
+            for (String hv : req.getHeaders().values()) {
+                envManager.registerPlaceholders(hv);
+            }
+            // Scan the body
+            envManager.registerPlaceholders(req.getBody());
+
             return req;
 
         } catch (Exception e) {
