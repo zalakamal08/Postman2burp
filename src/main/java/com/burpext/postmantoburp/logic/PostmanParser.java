@@ -179,6 +179,8 @@ public class PostmanParser {
             }
             // Scan the body
             envManager.registerPlaceholders(req.getBody());
+            // Scan the auth value — e.g. bearer token stored as {{myToken}}
+            envManager.registerPlaceholders(req.getAuthValue());
 
             return req;
 
