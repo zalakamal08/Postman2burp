@@ -105,8 +105,13 @@ public class PostmanParser {
             }
             req.setHeaders(headers);
 
-            // Auth — Bearer token
-            if (request.has("auth")) {
+            // Auth — only process auth block if NO Authorization header already exists in the
+            // headers array. This prevents the same credential appearing twice in the final
+            // raw request (once from the header, once injected by buildHttpRequest).
+            boolean headersHasAuth = headers.keySet().stream()
+                    .anyMatch(k -> "authorization".equalsIgnoreCase(k));
+
+            if (!headersHasAuth && request.has("auth")) {
                 JsonNode auth = request.get("auth");
                 String authType = auth.has("type") ? auth.get("type").asText().toLowerCase() : "none";
                 if ("bearer".equals(authType) && auth.has("bearer") && auth.get("bearer").isArray()) {
@@ -126,7 +131,7 @@ public class PostmanParser {
                     }
                     req.setAuthType("basic");
                     req.setAuthValue(java.util.Base64.getEncoder().encodeToString((user + ":" + pass).getBytes()));
-                } else {
+                } else if (!"none".equals(authType)) {
                     req.setAuthType(authType);
                 }
             }
